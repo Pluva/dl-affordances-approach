@@ -69,8 +69,9 @@ nb_epoch_s2 = 10
 range_learning_rates = [0.001, 0.0001]
 range_reset_layers = [0] # Reseting layers imply to let them be trained, so adapt fine tuning accordingly. 
 range_fine_tuning = [-1] # Number of layers to be trained, [-1] to train them all. 
-nb_iteration_per_model = range(2)
-nb_datasets = range(10)
+nb_iteration_per_model = range(1)
+range_split_sizes = [20, 30, 40, 50, 60, 70, 80, 90]
+nb_datasets = range(5)
 
 
 # ----- Define optimizer parameters    
@@ -85,7 +86,7 @@ decay_range=[0.0001]; momentum_range=[0.9]; nesterov=True;
 save_logs = True
 save_model = True
 root_path = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/'
-file_name = 'DL_PTsimpleshapes_AR_MD_VGG16_Tools_d' + str(model_params[0]) + '_' + str(img_rows) + 'x' + str(img_cols)
+file_name = 'DL_PT_tools_AR_MDMS_VGG16_d' + str(model_params[0]) + '_' + str(img_rows) + 'x' + str(img_cols)
 logs_file_path = root_path + file_name + '.csv'
 model_file_path = root_path + file_name + '.h5'
 
@@ -95,11 +96,13 @@ def bash_command(cmd):
     p = subprocess.Popen(cmd, shell=True, executable='/bin/bash')
     p.wait()
     return;
-def randomize_dataset(path_to_source, path_to_target):
-    cmd = 'bash /home/luce_vayrac/bash_ws/create_mix_dataset.sh'+' '+ path_to_source +' '+path_to_target
+def randomize_dataset(path_to_source, path_to_target, split_size):
+    cmd = 'bash /home/luce_vayrac/git/dl-affordances-approach/sources/tools/create_mix_dataset.sh'
+    cmd = cmd +' '+ path_to_source +' '+path_to_target+' '+split_size
     bash_command(cmd)
     return;
 # -----
+
 
 def load_dataset(path):
     # ------------------- DATA PREPROCESSING -------------------
@@ -263,6 +266,7 @@ logs_file_param_headers = ['lr',
     'decay',
     'momentum',
     'dataset',
+    'ds_split_perc',
     'ds_train_nb',
     'ds_val_nb',
     'iter',
@@ -282,6 +286,7 @@ for n in [range_learning_rates,
     range_fine_tuning,
     decay_range,
     momentum_range,
+    range_split_sizes,
     nb_datasets,
     nb_iteration_per_model]:
     grid_size *= len(n)
@@ -293,7 +298,8 @@ current_dataset = -1
 
 # --- Training loops
 print('-- Starting training:')
-for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
+for split_size, dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
+                                                        range_split_sizes,
                                                         nb_datasets,
                                                         range_learning_rates, 
                                                         range_reset_layers,
@@ -308,6 +314,7 @@ for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in pr
         +' rl='+str(reset_layers)
         +' ft='+str(fine_tuning)
         +' decay='+str(decay)
+        +' split_size='+str(split_size)
         +' dataset='+str(dataset)
         +' it='+str(it+1)
         +' progress='+str(progress/grid_size))
@@ -321,7 +328,7 @@ for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in pr
     if current_dataset != dataset:
         print('-- -- Randomizing Dataset')
         current_dataset = dataset
-        randomize_dataset(dataset_path_source, dataset_path_target)
+        randomize_dataset(dataset_path_source, dataset_path_target, str(split_size))
         (td, vd) = load_dataset(dataset_path_target)
 
     # --- Construct model
@@ -338,7 +345,7 @@ for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in pr
                                 nb_epoch_s1, nb_epoch_s2)
     # --- Log results
     if save_logs:
-        metaparams = [learning_rate, reset_layers, fine_tuning, decay, momentum, dataset, td.samples, vd.samples, it]
+        metaparams = [learning_rate, reset_layers, fine_tuning, decay, momentum, split_size, dataset, td.samples, vd.samples, it]
         log_history_to_csv_file(metaparams + [0], history1, logs_file)
         log_history_to_csv_file(metaparams + [1], history2, logs_file)
     if save_model:

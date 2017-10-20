@@ -1,8 +1,5 @@
 # *---------------------------------------------*
-# Multi Dataset Experiment Wiht a Two Step Training Method.
-# Fork form the original MonoDataset experiment, in order to validate data on different
-# split of the dataset. Should be use instead of MonoDataset from now on. Even for a
-# small number of dataset (shouldn't be less than 5 however, to avoid perfect/worst case).
+# 
 # *---------------------------------------------*
 
 

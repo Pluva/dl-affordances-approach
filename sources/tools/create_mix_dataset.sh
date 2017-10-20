@@ -3,6 +3,7 @@
 
 path_to_source=$1
 path_to_target=$2
+split_size=$3
 
 rm -r $path_to_target;
 mkdir $path_to_target;
@@ -15,8 +16,8 @@ do
         mkdir -p $path_to_target/train/$dir;
         for sdir in $(ls $path_to_source/$dir)
         do        
-            k=$(($RANDOM % 3));
-            if [ $k -eq 2 ]
+            k=$(($RANDOM % 100));
+            if [ $k -ge $split_size ]
             then    
                 cp -r $path_to_source/$dir/$sdir $path_to_target/validation/$dir/$sdir;
             else
