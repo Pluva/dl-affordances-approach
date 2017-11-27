@@ -1,5 +1,6 @@
 # *---------------------------------------------*
-# 
+# Sorting experiment on Imagenet Datasets.
+# Use this code to pretrain a network.
 # *---------------------------------------------*
 
 

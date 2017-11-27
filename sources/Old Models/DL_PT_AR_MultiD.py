@@ -59,14 +59,20 @@ dataset_path_source = '/home/luce_vayrac/kinect_datasets/DL_Ready/rollable_data_
 dataset_path_target = '/home/luce_vayrac/kinect_datasets/DL_Ready/rollable_data_randomized'
 
 # ----- Define parameters for grid search
-nb_epoch = 100
+nb_epoch = 10
 
 range_learning_rates = [0.001, 0.0001]
 range_reset_layers = range(1) # Reseting layers imply to let them be trained, so adapt fine tuning accordingly. 
 range_fine_tuning = range(1) # Number of layers to be trained, [-1] to train them all. 
-nb_iteration_per_model = range(2)
+nb_iteration_per_model = range(1)
 nb_datasets = range(10)
-
+range_layers = [
+    # (1024, 1024), (1024, 512), (1024, 256), (1024, 128),
+    # (512, 512), (512, 256), (512, 128),
+    (256, 32), (256, 16), (256, 8),
+    (128, 32), (128, 16), (128, 8)]
+# range_layer1_size = [1024, 512, 256, 128]
+# range_layer2_size = [1024, 512, 256, 128]
 
 # ----- Define optimizer parameters    
 # SGD
@@ -79,7 +85,7 @@ decay_range=[0.0001]; momentum_range=[0.9]; nesterov=True;
 # ----- Saving logs to file params
 save_logs = True
 # workstation / laptop
-log_file_path = '/home/luce_vayrac/python_ws/training logs/DL_AR_Mult_CIFAR10.csv'
+log_file_path = '/home/luce_vayrac/python_ws/training logs/DL_PT_AR_Mult_VGG16_lighter124.csv'
 # log_file_path = '/home/eze/python_ws/DL_pretrainedAffRoll_training_decay_high.log'
 log_file = open(log_file_path, 'w')
 log_file_param_headers = ['lr',
@@ -88,6 +94,8 @@ log_file_param_headers = ['lr',
     'decay',
     'momentum',
     'dataset',
+    'l1_size',
+    'l2_size',
     'iter',
     'epoch',
     'loss',
@@ -140,9 +148,46 @@ def load_dataset(path):
 # ----- Training function to include all corresponding code in a easier snippet of code to handle.
 def train_model_basic(train_generator, validation_generator, optimizer, reset_layers, fine_tuning, nb_epoch):
     # ------------------- MODEL CREATION -------------------
+    # --- MODEL VGG16
+    base_model = generate_model_VGG16(include_top=False, weights='imagenet', input_shape=(img_rows, img_cols, img_channels))
     # --- MODEL CIFAR10
-    model = generate_model_CIFAR10(nb_classes, input_shape=(img_rows, img_cols, img_channels))
+    # model = generate_model_CIFAR10(optimizer=optimizer, input_shape=(img_rows, img_cols, img_channels), nb_classes=nb_classes)
+    # base_model = model
+    # --- MODEL SORTING
+    # model = load_model_SORTING('/home/luce_vayrac/python_ws/saved_model/dl_sorting_4')
+
     # print(base_model.summary())
+
+    # --- Randomize top_layers
+    if (reset_layers > 0):
+        base_model = randomize_layers(reset_layers, base_model, model_type='Model')
+        # Accord reseting layers and fine tuning
+        if (reset_layers > fine_tuning) and (fine_tuning != -1):
+            fine_tuning = reset_layers
+
+    # --- VGG without top layers
+    top_model = base_model.output
+    top_model = (Flatten())(top_model)
+    # top_model = (Dense(512, activation='relu'))(top_model)
+    top_model = (Dense(global_l1_size, activation='relu'))(top_model) # to test out layers size
+    top_model = (Dropout(0.5))(top_model)
+    # top_model = (Dense(256, activation='relu'))(top_model)
+    #top_model = (Dense(global_l2_size, activation='relu'))(top_model) # to test out layers size
+    #top_model = (Dropout(0.5))(top_model)
+    top_model = (Dense(nb_classes, activation='softmax'))(top_model)
+
+    # --- VGG with top layers
+    # base_model.layers.pop()
+    # top_model = (Dense(nb_classes, activation='softmax'))(base_model.layers[-1].output)
+
+    model = Model(inputs=base_model.input, outputs=top_model)
+
+    # ------------------- FREEZING LAYERS -------------------
+    # Freeze layers
+    if fine_tuning >= 0:
+        layers_to_freeze = max(0, len(base_model.layers) - fine_tuning)
+        for layer in base_model.layers[:layers_to_freeze]:
+            layer.trainable = False
 
     # ------------------- COMPILING -------------------
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
@@ -160,6 +205,7 @@ def train_model_basic(train_generator, validation_generator, optimizer, reset_la
         validation_steps=validation_generator.samples / batch_size,
         # class_weight=None, max_q_size=10, workers=1, pickle_safe=False, initial_epoch=0
     )
+
     return history;
 
 
@@ -176,6 +222,7 @@ for n in [range_learning_rates,
     decay_range,
     momentum_range,
     nb_datasets,
+    range_layers,
     nb_iteration_per_model]:
     grid_size *= len(n)
 
@@ -186,15 +233,18 @@ current_dataset = -1
 
 # ----- Training loops
 print('-- Starting training:')
-for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
+for dataset, global_layers_size, learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
                                                         nb_datasets,
-                                                        range_learning_rates, 
+                                                        range_layers,
+                                                        range_learning_rates,
                                                         range_reset_layers,
                                                         range_fine_tuning,
                                                         decay_range,
                                                         momentum_range,
                                                         nb_iteration_per_model):
 
+    # --- Set global layers size
+    (global_l1_size, global_l2_size) = global_layers_size
 
     # --- Print progress info
     print('-- lr='+str(learning_rate)
@@ -202,6 +252,8 @@ for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in pr
         +' ft='+str(fine_tuning)
         +' decay='+str(decay)
         +' dataset='+str(dataset)
+        +' l1_size='+str(global_l1_size)
+        +' l2_size='+str(global_l2_size)
         +' it='+str(it+1)
         +' progress='+str(progress/grid_size))
     if progress >= 1:
@@ -223,7 +275,7 @@ for dataset, learning_rate, reset_layers, fine_tuning, decay, momentum, it in pr
     history = train_model_basic(td, vd, optimizer, reset_layers, fine_tuning, nb_epoch)
     # --- Log results
     if save_logs:
-        metaparams = [learning_rate, reset_layers, fine_tuning, decay, momentum, dataset, it]
+        metaparams = [learning_rate, reset_layers, fine_tuning, decay, momentum, dataset, global_l1_size, global_l2_size, it]
         # training_perfs = [history.history['loss'][-1], history.history['acc'][-1], history.history['val_loss'][-1], history.history['val_acc'][-1]]
         log_history_to_csv_file(metaparams, history, log_file)
     # --- Clear TF session to counter memory leaks
