@@ -37,7 +37,9 @@ from tools.DL_utilities import *
 
 
 batch_size = 32
-nb_classes = 7
+
+
+
 
 # input image dimensions
 # img_rows, img_cols = 128, 128
@@ -48,19 +50,25 @@ img_channels = 3
 
 # ----- Model Type
 model_type = 'VGG16'
-model_params = [128]
+model_params = []
 
 # --------------- Hard linked datasets
-path_to_dataset = '/home/luce_vayrac/Imagenet_datasets/Tools/'
+# path_to_dataset = '/home/luce_vayrac/Imagenet_datasets/Tools/' # Tools
+# nb_classes = 7 # Tools
+# path_to_dataset = '/home/luce_vayrac/Imagenet_datasets/Simple_Shapes/' # Shapes
+# nb_classes = 6 # Shapes
+path_to_dataset = '/home/luce_vayrac/Imagenet_datasets/Flowers/' # Shapes
+nb_classes = 9 # Shapes
 
 # ----- Define parameters for grid search
-nb_epoch = 30
+nb_epoch = 20
 
 range_learning_rates = [0.001]
 range_reset_layers = [0] # Reseting layers imply to let them be trained, so adapt fine tuning accordingly. 
 range_fine_tuning = [-1] # Number of layers to be trained, [-1] to train them all. 
 nb_iteration_per_model = range(1)
 
+last_layer_sizes = [128]
 
 # ----- Define optimizer parameters    
 # SGD
@@ -73,8 +81,8 @@ decay_range=[0.0001]; momentum_range=[0.9]; nesterov=True;
 # ----- Saving logs training history and model's weights
 save_logs = True
 save_model = True
-logs_file_path = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Tools_VGG16_d128_224x224.csv'
-model_file_path = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Tools_VGG16_d128_224x224.h5'
+logs_file_path_root = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Flowers_VGG16_d'
+model_file_path_root = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Flowers_VGG16_d'
 
 
 def load_dataset(path):
@@ -152,7 +160,8 @@ def construct_model(model_type, params):
         base_model = generate_model_VGG16(include_top=False, weights='imagenet', input_shape=(img_rows, img_cols, img_channels))
         x = base_model.output
         x = (Flatten())(x)
-        x = (Dense(params[0], activation='relu'))(x) # to test out layers size
+        if (params[0] != 0):
+            x = (Dense(params[0], activation='relu'))(x) # to test out layers size
         x = (Dropout(0.5))(x)
         # x = (Dense(256, activation='relu'))(x)
         #x = (Dropout(0.5))(x)
@@ -199,20 +208,17 @@ def construct_model(model_type, params):
 
 
 # ------------------- TRAINING -------------------
-# --- Open logs file
-logs_file = open(logs_file_path, 'w')
 logs_file_param_headers = ['lr',
-    'rl',
-    'ft',
-    'decay',
-    'momentum',
-    'iter',
-    'epoch',
-    'loss',
-    'acc',
-    'val_loss',
-    'val_acc']
-initialize_headers_file(logs_file_param_headers, logs_file)
+            'rl',
+            'ft',
+            'decay',
+            'momentum',
+            'iter',
+            'epoch',
+            'loss',
+            'acc',
+            'val_loss',
+            'val_acc']
 
 # --- Progress var
 progress = 0
@@ -232,13 +238,14 @@ current_dataset = -1
 
 # --- Training loops
 print('-- Starting training:')
-for learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
+for learning_rate, reset_layers, fine_tuning, decay, momentum, it, last_layer_size in product(
                                                         range_learning_rates, 
                                                         range_reset_layers,
                                                         range_fine_tuning,
                                                         decay_range,
                                                         momentum_range,
-                                                        nb_iteration_per_model):
+                                                        nb_iteration_per_model,
+                                                        last_layer_sizes):
 
 
     # --- Print progress info
@@ -256,6 +263,7 @@ for learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
     (td, vd) = load_dataset(path_to_dataset)
 
     # --- Construct model
+    model_params = [last_layer_size]
     model = construct_model(model_type, model_params)
     # print(model.summary())
     # --- Build optimizer
@@ -263,10 +271,16 @@ for learning_rate, reset_layers, fine_tuning, decay, momentum, it in product(
     # --- Train model
     (history, model) = train_model(model, td, vd, optimizer, reset_layers, fine_tuning, nb_epoch)
     # --- Log results
+    logs_input_size = str(img_cols) + 'x' + str(img_rows)
     if save_logs:
         metaparams = [learning_rate, reset_layers, fine_tuning, decay, momentum, it]
+        logs_file_path = logs_file_path_root + str(last_layer_size) + '_' + logs_input_size + '.csv'
+        logs_file = open(logs_file_path, 'w')
+        initialize_headers_file(logs_file_param_headers, logs_file)
         log_history_to_csv_file(metaparams, history, logs_file)
+
     if save_model:
+        model_file_path = model_file_path_root + str(last_layer_size) + '_' + logs_input_size + '.h5'
         model.save(model_file_path)
 
     # --- Clear TF session to counter memory leaks

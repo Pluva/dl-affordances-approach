@@ -50,7 +50,7 @@ img_channels = 3
 
 # ----- Model Type
 model_type = 'SORTING_VGG16'
-model_params = [128, '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Tools_VGG16_d128_224x224.h5']
+model_params = [32, '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/DL_SORTING_IMGNET_Flowers_VGG16_d128_224x224.h5']
 
 # --------------- Hard linked datasets
 # --- path to dataset workstation / laptop
@@ -70,7 +70,7 @@ range_learning_rates = [0.001, 0.0001]
 range_reset_layers = [0] # Reseting layers imply to let them be trained, so adapt fine tuning accordingly. 
 range_fine_tuning = [-1] # Number of layers to be trained, [-1] to train them all. 
 nb_iteration_per_model = range(1)
-range_split_sizes = [20, 30, 40, 50, 60, 70, 80, 90]
+range_split_sizes = [50, 60, 70]
 nb_datasets = range(5)
 
 
@@ -86,7 +86,7 @@ decay_range=[0.0001]; momentum_range=[0.9]; nesterov=True;
 save_logs = True
 save_model = True
 root_path = '/home/luce_vayrac/python_ws/saved_models/dl_vgg16/'
-file_name = 'DL_PT_tools_AR_MDMS_VGG16_d' + str(model_params[0]) + '_' + str(img_rows) + 'x' + str(img_cols)
+file_name = 'DL_PT_flowers_AR_MDMS_VGG16_d' + str(model_params[0]) + '_' + str(img_rows) + 'x' + str(img_cols)
 logs_file_path = root_path + file_name + '.csv'
 model_file_path = root_path + file_name + '.h5'
 
